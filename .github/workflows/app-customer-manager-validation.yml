@@ -1,0 +1,52 @@
+name: Customer Manager Validator
+on:
+  watch:
+    types: [started]
+jobs:
+  collect-services:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{steps.collect.outputs.services}}
+    steps:
+      - name: Check out repository code
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: collect importers
+        id: collect
+        run: |
+          echo `pwd`
+          echo `ls`
+          services=`
+            find ./services/ -name "build.gradle.kts" -maxdepth 2 | \
+            xargs grep "com.demo:customer-manager-api-client" | \
+            awk {'print $1'} | \
+            sed -e 's/.\/services\///g' -e 's/\/build.gradle.kts://g'
+          `
+          echo $services
+          result="["
+          for service in $services
+          do
+            result+="\"$service\","
+          done
+          result+="]"
+          echo $result
+          echo "::set-output name=services::$result"
+  test-output-pass:
+    runs-on: ubuntu-latest
+    needs: collect-services
+    steps:
+      - name: test output pass
+        run: echo ${{needs.collect-services.outputs.services}}
+
+  call-validation-using-matrix:
+    runs-on: ubuntu-latest
+    needs: collect-services
+    strategy:
+      matrix:
+        service: ${{fromJson(needs.collect-services.outputs.services)}}
+    steps:
+      - name: output service name
+        run: |
+          echo ${{matrix.service}}
